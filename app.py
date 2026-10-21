@@ -1,6 +1,8 @@
+
 import streamlit as st
 import requests
 import pandas as pd
+import plotly.graph_objects as go
 from datetime import datetime, timezone
 
 st.set_page_config(
@@ -10,28 +12,32 @@ st.set_page_config(
 )
 
 # Logo and website header
-col1, col2 = st.columns([1, 4], vertical_alignment="center")
+col1, col2 = st.columns(
+    [1, 4],
+    vertical_alignment="center"
+)
 
 with col1:
     st.image("logo.png", width=150)
 
 with col2:
     st.title("GoldScope AI")
-    st.caption("XAU/USD · Smarter Gold Trading")
+    st.caption("XAU/USD · Smarter Gold Trading · 15m")
 
 # API key stored securely in Streamlit Cloud Secrets
 api_key = st.secrets.get("TWELVE_DATA_API_KEY", "")
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)
 def fetch_gold(key):
     response = requests.get(
         "https://api.twelvedata.com/time_series",
         params={
             "symbol": "XAU/USD",
-            "interval": "1min",
+            "interval": "15min",
             "outputsize": 100,
             "apikey": key,
+            "timezone": "UTC",
         },
         timeout=20,
     )
@@ -45,21 +51,34 @@ def fetch_gold(key):
         )
 
     df = pd.DataFrame(result["values"])
-    df["datetime"] = pd.to_datetime(df["datetime"])
-    df["close"] = pd.to_numeric(
-        df["close"], errors="coerce"
+
+    df["datetime"] = pd.to_datetime(
+        df["datetime"], utc=True, errors="coerce"
     )
 
-    df = df.dropna(subset=["close"])
-    df = df.sort_values("datetime").reset_index(drop=True)
+    for column in ["open", "high", "low", "close"]:
+        df[column] = pd.to_numeric(
+            df[column], errors="coerce"
+        )
+
+    df = (
+        df.dropna(
+            subset=[
+                "datetime", "open", "high",
+                "low", "close"
+            ]
+        )
+        .sort_values("datetime")
+        .reset_index(drop=True)
+    )
 
     if df.empty:
-        raise ValueError("No valid price data received.")
+        raise ValueError("No valid candle data received.")
 
     return df
 
 
-@st.fragment(run_every="10s")
+@st.fragment(run_every="60s")
 def gold_dashboard():
 
     if not api_key:
@@ -86,27 +105,72 @@ def gold_dashboard():
         c1.metric(
             "Gold (XAU/USD)",
             f"${latest:,.2f}",
-            f"{change:+.2f}"
+            f"{change:+.2f} vs previous 15m candle"
         )
 
         c2.metric(
             "Estimated Support",
-            f"${df['close'].min():,.2f}"
+            f"${df['low'].min():,.2f}"
         )
 
         c3.metric(
             "Estimated Resistance",
-            f"${df['close'].max():,.2f}"
+            f"${df['high'].max():,.2f}"
         )
 
-        # Price chart
-        st.subheader("Gold Price Chart")
+        # 15-minute candlestick chart
+        st.subheader("🕯️ Gold Candlestick Chart")
+        st.caption(
+            "Timeframe: 15 minutes · Latest 100 candles · UTC"
+        )
 
-        chart = df.set_index("datetime")[["close"]].copy()
-        chart["Support"] = df["close"].min()
-        chart["Resistance"] = df["close"].max()
+        fig = go.Figure(
+            data=[
+                go.Candlestick(
+                    x=df["datetime"],
+                    open=df["open"],
+                    high=df["high"],
+                    low=df["low"],
+                    close=df["close"],
+                    name="XAU/USD",
+                    increasing_line_color="#00C087",
+                    increasing_fillcolor="#00C087",
+                    decreasing_line_color="#FF4D4F",
+                    decreasing_fillcolor="#FF4D4F",
+                    hovertemplate=(
+                        "Time: %{x}<br>"
+                        "Open: %{open:.2f}<br>"
+                        "High: %{high:.2f}<br>"
+                        "Low: %{low:.2f}<br>"
+                        "Close: %{close:.2f}"
+                        "<extra></extra>"
+                    ),
+                )
+            ]
+        )
 
-        st.line_chart(chart)
+        fig.update_layout(
+            template="plotly_dark",
+            height=600,
+            xaxis_title="Time (UTC)",
+            yaxis_title="Gold price (USD)",
+            xaxis_rangeslider_visible=False,
+            margin=dict(l=15, r=15, t=25, b=15),
+            hovermode="x unified",
+        )
+
+        fig.update_xaxes(
+            showgrid=True,
+            rangeslider_visible=False,
+        )
+
+        fig.update_yaxes(showgrid=True)
+
+        st.plotly_chart(
+            fig,
+            width="stretch",
+            key="gold_15m_candlestick",
+        )
 
         # Market observation
         st.subheader("Market Observation")
@@ -114,33 +178,48 @@ def gold_dashboard():
         if len(df) >= 5:
             recent = df["close"].tail(5)
 
-            if recent.is_monotonic_increasing:
-                st.info("Recent prices are trending upward.")
+            if recent.is_monotonic_increasing and (
+                recent.iloc[-1] > recent.iloc[0]
+            ):
+                st.info(
+                    "Recent 15m closes are generally rising."
+                )
 
-            elif recent.is_monotonic_decreasing:
-                st.info("Recent prices are trending downward.")
+            elif recent.is_monotonic_decreasing and (
+                recent.iloc[-1] < recent.iloc[0]
+            ):
+                st.info(
+                    "Recent 15m closes are generally falling."
+                )
 
             else:
-                st.info("Recent prices are moving unevenly.")
+                st.info(
+                    "Recent 15m closes are moving unevenly."
+                )
 
         else:
             st.info(
-                "Not enough price history for a trend observation."
+                "Not enough candles for a trend observation."
             )
 
         st.caption(
-            "Latest candle: "
-            + str(df["datetime"].iloc[-1])
+            "Latest returned candle: "
+            + df["datetime"].iloc[-1].strftime(
+                "%Y-%m-%d %H:%M UTC"
+            )
         )
 
         st.caption(
             "Last checked: "
-            + datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+            + datetime.now(timezone.utc).strftime(
+                "%H:%M:%S UTC"
+            )
         )
 
         st.caption(
-            "Refresh checks run every 10 seconds. "
-            "Provider updates may be delayed."
+            "The dashboard checks for updates every 60 seconds. "
+            "The data provider may delay updates. "
+            "The latest candle may still be forming."
         )
 
     except Exception as error:
@@ -154,10 +233,10 @@ st.divider()
 st.subheader("About GoldScope AI")
 
 st.write(
-    "GoldScope AI displays XAU/USD market data and provides "
-    "simple support and resistance estimates based on the "
-    "returned price history. These are not guaranteed trading "
-    "levels, and market observations cannot predict future prices."
+    "GoldScope AI displays XAU/USD 15-minute candlesticks "
+    "and estimated support/resistance based on the returned "
+    "history. These levels are not guaranteed, and market "
+    "observations cannot predict future prices."
 )
 
 st.caption(
