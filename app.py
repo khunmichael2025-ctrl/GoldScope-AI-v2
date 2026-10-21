@@ -11,99 +11,109 @@ st.set_page_config(
 )
 
 st.title("🟡 GoldScope AI")
-st.caption("Gold market dashboard · Automatic data refresh")
+st.caption("XAU/USD · Gold market dashboard")
 
-st.sidebar.header("Settings")
-api_key = st.sidebar.text_input(
-    "Twelve Data API key",
-    type="password",
-    help="Enter your API key here. Do not share it publicly."
-)
+# Read API key securely from Streamlit Secrets
+api_key = st.secrets.get("TWELVE_DATA_API_KEY", "")
 
 @st.cache_data(ttl=5, show_spinner=False)
-def get_gold_data(key):
+def fetch_gold(key):
     response = requests.get(
         "https://api.twelvedata.com/time_series",
         params={
             "symbol": "XAU/USD",
             "interval": "1min",
-            "outputsize": 30,
+            "outputsize": 100,
             "apikey": key,
         },
-        timeout=15,
+        timeout=20,
     )
     response.raise_for_status()
-    data = response.json()
+    result = response.json()
 
-    if "values" not in data:
+    if "values" not in result:
         raise ValueError(
-            data.get("message", "No gold-price data returned.")
+            result.get("message", "Gold data is unavailable.")
         )
 
-    df = pd.DataFrame(data["values"])
+    df = pd.DataFrame(result["values"])
     df["datetime"] = pd.to_datetime(df["datetime"])
     df["close"] = pd.to_numeric(df["close"], errors="coerce")
-    df = df.dropna(subset=["close"]).sort_values("datetime")
+    df = df.dropna(subset=["close"])
+    df = df.sort_values("datetime").reset_index(drop=True)
 
     if df.empty:
-        raise ValueError("The provider returned no valid prices.")
+        raise ValueError("No valid price data received.")
 
     return df
 
 @st.fragment(run_every="10s")
-def live_gold_panel():
+def gold_dashboard():
     if not api_key:
-        st.info(
-            "Enter your Twelve Data API key in the sidebar "
-            "to load gold prices."
+        st.error(
+            "API key missing. Add TWELVE_DATA_API_KEY "
+            "under your app's Streamlit Cloud Secrets."
         )
         return
 
     try:
-        df = get_gold_data(api_key)
-        latest = df.iloc[-1]
-        previous = df.iloc[-2] if len(df) > 1 else latest
-
-        price = float(latest["close"])
-        change = price - float(previous["close"])
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Latest XAU/USD", f"${price:,.2f}",
-                    f"{change:+.2f}")
-        col2.metric("Data points", len(df))
-        col3.metric(
-            "Latest data timestamp",
-            str(latest["datetime"])
+        df = fetch_gold(api_key)
+        latest = float(df["close"].iloc[-1])
+        previous = (
+            float(df["close"].iloc[-2])
+            if len(df) > 1 else latest
         )
 
-        st.line_chart(
-            df.set_index("datetime")["close"],
-            y_label="Price (provider units)",
-        )
+        change = latest - previous
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Gold (XAU/USD)", f"${latest:,.2f}",
+                  f"{change:+.2f}")
+        c2.metric("Estimated Support", f"${df['close'].min():,.2f}")
+        c3.metric("Estimated Resistance", f"${df['close'].max():,.2f}")
+
+        st.subheader("Gold Price Chart")
+
+        chart = df.set_index("datetime")[["close"]].copy()
+        chart["Support"] = df["close"].min()
+        chart["Resistance"] = df["close"].max()
+        st.line_chart(chart)
+
+        st.subheader("Market Observation")
 
         if len(df) >= 5:
             recent = df["close"].tail(5)
             if recent.is_monotonic_increasing:
-                st.info("Short-term observation: recent prices are rising.")
+                st.info("Recent prices are trending upward.")
             elif recent.is_monotonic_decreasing:
-                st.info("Short-term observation: recent prices are falling.")
+                st.info("Recent prices are trending downward.")
             else:
-                st.info("Short-term observation: mixed price movement.")
+                st.info("Recent prices are moving unevenly.")
+        else:
+            st.info("Not enough price history for a trend observation.")
 
         st.caption(
-            "Last checked: " +
-            datetime.now(timezone.utc).strftime("%H:%M:%S UTC") +
-            " · Provider updates may be delayed."
+            "Latest candle: " + str(df["datetime"].iloc[-1])
+        )
+        st.caption(
+            "Last checked: "
+            + datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+        )
+        st.caption(
+            "Refresh checks run every 10 seconds. "
+            "Provider updates may be delayed."
         )
 
     except Exception as error:
-        st.error(f"Unable to update gold data: {error}")
+        st.error(f"Could not update gold prices: {error}")
 
-live_gold_panel()
+gold_dashboard()
 
 st.divider()
-st.subheader("Market notes")
+st.subheader("About this dashboard")
 st.write(
-    "This dashboard displays provider data and simple observations. "
-    "It does not guarantee future prices or provide guaranteed signals."
+    "Support and resistance are estimated from the lowest and "
+    "highest closing prices in the returned data window. "
+    "They are not confirmed trading levels. Trend observations "
+    "are descriptive and do not guarantee future price movements."
 )
