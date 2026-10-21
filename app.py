@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 st.set_page_config(
     page_title="GoldScope AI",
-    page_icon="🟡",
+    page_icon="🪙",
     layout="wide"
 )
 
