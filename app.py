@@ -41,7 +41,7 @@ TIMEZONES = {
 }
 
 selected_zone = st.selectbox(
-    "🌍 Chart time zone",
+    " Chart time zone",
     options=list(TIMEZONES.keys()),
     index=1,
 )
@@ -150,7 +150,7 @@ def gold_dashboard():
         )
 
         # Candlestick chart
-        st.subheader("📊 XAU/USD Candlestick Chart")
+        st.subheader(" XAU/USD Candlestick Chart")
         st.caption(
             "Each candle represents 15 minutes. "
             "Chart times use your selected time zone."
