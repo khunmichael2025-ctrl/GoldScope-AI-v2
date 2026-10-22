@@ -4,15 +4,9 @@ import streamlit.components.v1 as components
 import requests
 import pandas as pd
 import plotly.graph_objects as go
-
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
-
-
-# --------------------------------------------------
-# PAGE CONFIGURATION
-# --------------------------------------------------
 
 st.set_page_config(
     page_title="GoldScope AI",
@@ -20,222 +14,178 @@ st.set_page_config(
     layout="wide",
 )
 
-APP_DIR = Path(__file__).parent
-
-NAVY = "#081426"
-GOLD = "#E7B84B"
-LIGHT_GOLD = "#FFE6A0"
-
-
-# --------------------------------------------------
-# SESSION STATE
-# --------------------------------------------------
-
+# ---------- SESSION STATE ----------
 if "gold_started" not in st.session_state:
     st.session_state.gold_started = False
 
 if "gold_alerts_seen" not in st.session_state:
     st.session_state.gold_alerts_seen = set()
 
-
-# --------------------------------------------------
-# TIMEZONES
-# --------------------------------------------------
-
-TIMEZONES = {
-    "UTC": "UTC",
-    "ICT - Cambodia": "Asia/Phnom_Penh",
-    "New York": "America/New_York",
-    "London": "Europe/London",
-    "Tokyo": "Asia/Tokyo",
-    "Singapore": "Asia/Singapore",
-    "Hong Kong": "Asia/Hong_Kong",
-    "Sydney": "Australia/Sydney",
-    "Dubai": "Asia/Dubai",
-    "India": "Asia/Kolkata",
-    "Paris": "Europe/Paris",
-    "Los Angeles": "America/Los_Angeles",
-}
-
-
-# --------------------------------------------------
-# 3D GOLD COIN STARTUP SCREEN
-# --------------------------------------------------
-
+# ---------- STARTUP SCREEN ----------
 def show_startup_screen():
     st.markdown(
-        f"""
+        """
         <style>
-        .startup-panel {{
-            background:
-                radial-gradient(
-                    circle at 50% 35%,
-                    #172b48 0%,
-                    {NAVY} 65%,
-                    #040914 100%
-                );
-            border: 1px solid #b88b2d;
-            border-radius: 22px;
-            padding: 42px 20px 35px;
-            text-align: center;
-            overflow: hidden;
-            box-shadow: 0 15px 50px #00000035;
-        }}
-
-        .coin-scene {{
-            width: 180px;
-            height: 180px;
-            margin: 0 auto 18px;
-            perspective: 900px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }}
-
-        .gold-coin {{
-            position: relative;
-            width: 130px;
-            height: 130px;
-            transform-style: preserve-3d;
-            animation: coin-spin 5s linear infinite;
-        }}
-
-        .coin-face {{
-            position: absolute;
-            inset: 0;
-            border-radius: 50%;
-            border: 5px solid #ffdf7d;
-            background:
-                radial-gradient(
-                    circle at 28% 23%,
-                    #fffbd0 0%,
-                    #f8dc76 12%,
-                    #e9b839 35%,
-                    #b77812 68%,
-                    #68400b 100%
-                );
-            box-shadow:
-                inset 0 0 0 3px #c38b20,
-                inset 0 0 0 7px #f4d36b,
-                inset 0 0 15px #81500b,
-                0 0 22px #dba52a55;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backface-visibility: hidden;
-        }}
-
-        .coin-face::before {{
-            content: "";
-            position: absolute;
-            inset: 10px;
-            border-radius: 50%;
-            border: 2px solid #9a6815;
-            box-shadow: inset 0 0 0 2px #f9dc7d;
-        }}
-
-        .coin-letter {{
-            position: relative;
-            font-family: Georgia, serif;
-            font-size: 72px;
-            font-weight: 900;
-            line-height: 1;
-            color: #83520b;
-            text-shadow:
-                2px 2px 0 #ffed9c,
-                4px 4px 0 #bd831b,
-                -1px -1px 0 #fff6bf;
-            transform: translateZ(2px);
-        }}
-
-        .coin-front {{
-            transform: translateZ(7px);
-        }}
-
-        .coin-back {{
-            transform: rotateY(180deg) translateZ(7px);
-        }}
-
-        .coin-edge {{
-            position: absolute;
-            inset: 0;
-            border-radius: 50%;
-            border: 7px solid #c08a20;
-            background:
-                repeating-linear-gradient(
-                    90deg,
-                    #8a5a12 0px,
-                    #ffe17b 3px,
-                    #b47a16 6px,
-                    #f4d05c 9px
-                );
-            transform: translateZ(0);
-        }}
-
-        @keyframes coin-spin {{
-            from {{
-                transform: rotateY(0deg) rotateX(-8deg);
-            }}
-            to {{
-                transform: rotateY(360deg) rotateX(-8deg);
-            }}
-        }}
-
-        .startup-title {{
-            color: #f5cd66;
-            font-size: clamp(30px, 5vw, 45px);
-            font-weight: 800;
-            letter-spacing: 1px;
-            margin: 5px 0 8px;
-        }}
-
-        .startup-subtitle {{
-            color: #d4deed;
-            font-size: 15px;
-            margin-bottom: 14px;
-        }}
-
-        .startup-status {{
-            color: #e6bd57;
-            font-size: 12px;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-        }}
-
-        @media (prefers-reduced-motion: reduce) {{
-            .gold-coin {{
-                animation-duration: 15s;
-            }}
-        }}
+        .stApp {
+            background-color: #071426;
+        }
         </style>
-
-        <div class="startup-panel">
-            <div class="coin-scene">
-                <div class="gold-coin">
-                    <div class="coin-edge"></div>
-
-                    <div class="coin-face coin-front">
-                        <span class="coin-letter">G</span>
-                    </div>
-
-                    <div class="coin-face coin-back">
-                        <span class="coin-letter">G</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="startup-title">GoldScope AI</div>
-
-            <div class="startup-subtitle">
-                XAU/USD · Smarter Gold Market Analysis
-            </div>
-
-            <div class="startup-status">
-                Market Intelligence Dashboard
-            </div>
-        </div>
         """,
         unsafe_allow_html=True,
+    )
+
+    components.html(
+        """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <style>
+            * { box-sizing: border-box; }
+
+            body {
+                margin: 0;
+                font-family: Arial, sans-serif;
+                color: #f5f0e5;
+                background: #071426;
+            }
+
+            .intro {
+                min-height: 480px;
+                width: 100%;
+                padding: 35px 12px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                overflow: hidden;
+                border: 1px solid #34445b;
+                border-radius: 20px;
+                background:
+                    radial-gradient(
+                        circle at center,
+                        #183454 0%,
+                        #0b1c32 48%,
+                        #071426 85%
+                    );
+            }
+
+            .eyebrow {
+                font-size: 11px;
+                letter-spacing: 5px;
+                color: #d8b76a;
+                margin-bottom: 24px;
+            }
+
+            .coin-stage {
+                perspective: 800px;
+                margin: 5px 0 24px;
+            }
+
+            .spinning-coin {
+                display: inline-block;
+                font-family: "Segoe UI Emoji",
+                             "Apple Color Emoji",
+                             sans-serif;
+                font-size: 110px;
+                line-height: 1.3;
+                transform-style: preserve-3d;
+                filter:
+                    drop-shadow(0 0 12px rgba(235, 190, 82, .45))
+                    drop-shadow(0 0 32px rgba(235, 190, 82, .18));
+                animation: coin-spin 3s linear infinite;
+                will-change: transform;
+            }
+
+            @keyframes coin-spin {
+                from {
+                    transform: rotateY(0deg);
+                }
+                to {
+                    transform: rotateY(360deg);
+                }
+            }
+
+            h1 {
+                font-size: clamp(28px, 5vw, 42px);
+                letter-spacing: 2px;
+                margin: 0 0 12px;
+                font-weight: 750;
+                color: #f5d991;
+                text-shadow: 0 0 22px rgba(225, 182, 86, .18);
+            }
+
+            .subtitle {
+                font-size: 12px;
+                letter-spacing: 3px;
+                color: #a9b9cd;
+            }
+
+            .description {
+                max-width: 460px;
+                color: #bac7d7;
+                font-size: 13px;
+                line-height: 1.8;
+                margin-top: 22px;
+            }
+
+            .loading-line {
+                width: 145px;
+                height: 2px;
+                margin-top: 26px;
+                overflow: hidden;
+                background: #243a51;
+                border-radius: 4px;
+            }
+
+            .loading-line::after {
+                content: "";
+                display: block;
+                width: 45%;
+                height: 100%;
+                background: #e6c16e;
+                animation: loading 2s ease-in-out infinite;
+            }
+
+            @keyframes loading {
+                from { transform: translateX(-110%); }
+                to { transform: translateX(330%); }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .spinning-coin,
+                .loading-line::after {
+                    animation-duration: 8s;
+                }
+            }
+        </style>
+        </head>
+        <body>
+            <div class="intro">
+                <div class="eyebrow">MARKET INTELLIGENCE</div>
+
+                <div class="coin-stage">
+                    <div class="spinning-coin">🪙</div>
+                </div>
+
+                <h1>GoldScope AI</h1>
+
+                <div class="subtitle">
+                    PRECISION · CLARITY · DISCIPLINE
+                </div>
+
+                <div class="description">
+                    Explore XAU/USD market data, technical indicators,
+                    and experimental trading setups in one dashboard.
+                </div>
+
+                <div class="loading-line"></div>
+            </div>
+        </body>
+        </html>
+        """,
+        height=500,
+        scrolling=False,
     )
 
     st.write("")
@@ -251,687 +201,514 @@ def show_startup_screen():
             st.session_state.gold_started = True
             st.rerun()
 
+        st.caption(
+            "Educational market analysis. Signals are not guaranteed."
+        )
 
-# --------------------------------------------------
-# WEBSITE HEADER
-# --------------------------------------------------
 
+# ---------- HEADER ----------
 def show_header():
-    logo_path = APP_DIR / "logo.png"
-
-    col1, col2 = st.columns([1, 5])
+    col1, col2 = st.columns(
+        [1, 4],
+        vertical_alignment="center",
+    )
 
     with col1:
-        if logo_path.exists():
-            st.image(str(logo_path), width=115)
+        if Path("logo.png").exists():
+            st.image("logo.png", width=130)
 
     with col2:
         st.title("🪙 GoldScope AI")
-        st.caption("XAU/USD · Smarter Gold Market Analysis")
-
-    st.divider()
+        st.caption("XAU/USD · 15-minute candlestick dashboard")
 
 
-# --------------------------------------------------
-# GET API KEY
-# --------------------------------------------------
-
-def get_api_key():
-    try:
-        secret_key = st.secrets.get(
-            "TWELVE_DATA_API_KEY",
-            "",
-        )
-    except Exception:
-        secret_key = ""
-
-    with st.sidebar:
-        st.header("Settings")
-
-        if secret_key:
-            st.success("API key loaded from app secrets")
-            api_key = secret_key
-        else:
-            st.info(
-                "Enter your Twelve Data API key to load "
-                "gold market data."
-            )
-
-            api_key = st.text_input(
-                "Twelve Data API key",
-                type="password",
-                help=(
-                    "Your key is used to request market data. "
-                    "Do not share it publicly."
-                ),
-            )
-
-        st.caption(
-            "Market data availability depends on your "
-            "Twelve Data plan and API limits."
-        )
-
-    return api_key.strip()
+# ---------- TIME ZONES ----------
+TIMEZONES = {
+    "UTC": "UTC",
+    "ICT — Cambodia": "Asia/Phnom_Penh",
+    "New York": "America/New_York",
+    "London": "Europe/London",
+    "Tokyo": "Asia/Tokyo",
+    "Singapore": "Asia/Singapore",
+    "Hong Kong": "Asia/Hong_Kong",
+    "Sydney": "Australia/Sydney",
+    "Dubai": "Asia/Dubai",
+    "India": "Asia/Kolkata",
+    "Paris": "Europe/Paris",
+    "Los Angeles": "America/Los_Angeles",
+}
 
 
-# --------------------------------------------------
-# FETCH GOLD CANDLES
-# --------------------------------------------------
+# ---------- API KEY ----------
+try:
+    api_key = st.secrets.get("TWELVE_DATA_API_KEY", "")
+except Exception:
+    api_key = ""
 
+
+# ---------- MARKET DATA ----------
 @st.cache_data(ttl=30, show_spinner=False)
-def fetch_gold(api_key):
-    if not api_key:
-        return pd.DataFrame(), "Enter your API key."
-
-    url = "https://api.twelvedata.com/time_series"
-
-    params = {
-        "symbol": "XAU/USD",
-        "interval": "15min",
-        "outputsize": 100,
-        "timezone": "UTC",
-        "apikey": api_key,
-    }
-
-    try:
-        response = requests.get(
-            url,
-            params=params,
-            timeout=20,
-        )
-        response.raise_for_status()
-        data = response.json()
-
-        if "values" not in data:
-            message = data.get(
-                "message",
-                data.get("status", "Unknown API error"),
-            )
-            return pd.DataFrame(), str(message)
-
-        df = pd.DataFrame(data["values"])
-
-        required = [
-            "datetime",
-            "open",
-            "high",
-            "low",
-            "close",
-        ]
-
-        if not all(column in df.columns for column in required):
-            return pd.DataFrame(), "The API returned incomplete candle data."
-
-        df = df[required].copy()
-
-        df["datetime"] = pd.to_datetime(
-            df["datetime"],
-            utc=True,
-            errors="coerce",
-        )
-
-        for column in ["open", "high", "low", "close"]:
-            df[column] = pd.to_numeric(
-                df[column],
-                errors="coerce",
-            )
-
-        df = df.dropna()
-        df = df.sort_values("datetime")
-        df = df.drop_duplicates(
-            subset=["datetime"],
-            keep="last",
-        )
-        df = df.reset_index(drop=True)
-
-        if df.empty:
-            return pd.DataFrame(), "No usable candle data was returned."
-
-        return df, None
-
-    except requests.RequestException as exc:
-        return pd.DataFrame(), f"Network/API request failed: {exc}"
-
-    except Exception as exc:
-        return pd.DataFrame(), f"Could not process market data: {exc}"
-
-
-# --------------------------------------------------
-# INDICATORS AND SIGNAL CALCULATION
-# --------------------------------------------------
-
-def add_indicators(df):
-    df = df.copy()
-
-    df["ema20"] = df["close"].ewm(
-        span=20,
-        adjust=False,
-    ).mean()
-
-    df["ema50"] = df["close"].ewm(
-        span=50,
-        adjust=False,
-    ).mean()
-
-    delta = df["close"].diff()
-
-    gains = delta.clip(lower=0)
-    losses = -delta.clip(upper=0)
-
-    avg_gain = gains.ewm(
-        alpha=1 / 14,
-        min_periods=14,
-        adjust=False,
-    ).mean()
-
-    avg_loss = losses.ewm(
-        alpha=1 / 14,
-        min_periods=14,
-        adjust=False,
-    ).mean()
-
-    relative_strength = avg_gain / avg_loss.replace(0, float("nan"))
-
-    df["rsi"] = 100 - (
-        100 / (1 + relative_strength)
+def fetch_gold(key):
+    response = requests.get(
+        "https://api.twelvedata.com/time_series",
+        params={
+            "symbol": "XAU/USD",
+            "interval": "15min",
+            "outputsize": 100,
+            "timezone": "UTC",
+            "apikey": key,
+        },
+        timeout=20,
     )
 
-    df["rsi"] = df["rsi"].fillna(50)
+    response.raise_for_status()
+    result = response.json()
 
-    previous_close = df["close"].shift(1)
+    if "values" not in result:
+        raise ValueError(
+            result.get("message", "Gold data is unavailable.")
+        )
 
-    true_range = pd.concat(
-        [
-            df["high"] - df["low"],
-            (df["high"] - previous_close).abs(),
-            (df["low"] - previous_close).abs(),
-        ],
-        axis=1,
-    ).max(axis=1)
+    df = pd.DataFrame(result["values"])
 
-    df["atr"] = true_range.ewm(
-        alpha=1 / 14,
-        min_periods=14,
-        adjust=False,
-    ).mean()
+    df["datetime"] = pd.to_datetime(
+        df["datetime"], utc=True, errors="coerce"
+    )
+
+    for column in ["open", "high", "low", "close"]:
+        df[column] = pd.to_numeric(
+            df[column], errors="coerce"
+        )
+
+    df = df.dropna(
+        subset=["datetime", "open", "high", "low", "close"]
+    )
+
+    df = df.sort_values("datetime").reset_index(drop=True)
+
+    if df.empty:
+        raise ValueError("No valid candlestick data received.")
 
     return df
 
 
-def completed_candles(df):
-    if df.empty:
-        return df.copy()
+# ---------- SIGNAL ENGINE ----------
+def calculate_gold_signal(df):
+    data = df.copy()
 
+    # Only use completed 15-minute candles.
     now = pd.Timestamp.now(tz="UTC")
 
-    candle_end = (
-        df["datetime"] + pd.Timedelta(minutes=15)
+    candle_end = data["datetime"] + pd.Timedelta(minutes=15)
+
+    data = data.loc[candle_end <= now].copy()
+    data = data.sort_values("datetime").reset_index(drop=True)
+
+    if len(data) < 60:
+        return None
+
+    # EMA 20 and EMA 50.
+    data["ema20"] = data["close"].ewm(
+        span=20, adjust=False
+    ).mean()
+
+    data["ema50"] = data["close"].ewm(
+        span=50, adjust=False
+    ).mean()
+
+    # RSI 14.
+    delta = data["close"].diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+
+    avg_gain = gain.ewm(
+        alpha=1 / 14, min_periods=14, adjust=False
+    ).mean()
+
+    avg_loss = loss.ewm(
+        alpha=1 / 14, min_periods=14, adjust=False
+    ).mean()
+
+    rs = avg_gain / avg_loss
+    data["rsi"] = 100 - (100 / (1 + rs))
+
+    # ATR 14.
+    previous_close = data["close"].shift(1)
+
+    true_range = pd.concat(
+        [
+            data["high"] - data["low"],
+            (data["high"] - previous_close).abs(),
+            (data["low"] - previous_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+
+    data["atr"] = true_range.ewm(
+        alpha=1 / 14, min_periods=14, adjust=False
+    ).mean()
+
+    last = data.iloc[-1]
+    prev = data.iloc[-2]
+
+    if (
+        pd.isna(last["rsi"])
+        or pd.isna(last["atr"])
+        or last["atr"] <= 0
+    ):
+        return None
+
+    bullish = last["close"] > last["open"]
+    bearish = last["close"] < last["open"]
+
+    # Experimental BUY conditions.
+    buy = (
+        last["ema20"] > last["ema50"]
+        and last["close"] > last["ema20"]
+        and bullish
+        and 50 < last["rsi"] < 68
+        and prev["close"] <= prev["ema20"]
     )
 
-    result = df.loc[candle_end <= now].copy()
+    # Experimental SELL conditions.
+    sell = (
+        last["ema20"] < last["ema50"]
+        and last["close"] < last["ema20"]
+        and bearish
+        and 32 < last["rsi"] < 50
+        and prev["close"] >= prev["ema20"]
+    )
 
-    return result.reset_index(drop=True)
+    entry = float(last["close"])
+    atr = float(last["atr"])
 
+    # Illustrative ATR-based TP/SL.
+    sl_distance = atr
+    tp_distance = atr * 2
 
-def calculate_gold_signal(df):
-    result = {
-        "signal": "WAIT",
-        "reason": "Waiting for enough completed candles.",
-        "entry": None,
-        "stop_loss": None,
-        "take_profit": None,
-        "rsi": None,
-        "ema20": None,
-        "ema50": None,
-        "atr": None,
-        "candle_time": None,
+    if buy:
+        signal = "BUY"
+        reason = (
+            "Bullish trend, candle confirmation, "
+            "and RSI momentum."
+        )
+        sl = entry - sl_distance
+        tp = entry + tp_distance
+
+    elif sell:
+        signal = "SELL"
+        reason = (
+            "Bearish trend, candle confirmation, "
+            "and RSI momentum."
+        )
+        sl = entry + sl_distance
+        tp = entry - tp_distance
+
+    else:
+        signal = "WAIT"
+        reason = "No confirmed setup under the current rules."
+        sl = None
+        tp = None
+
+    return {
+        "signal": signal,
+        "reason": reason,
+        "price": entry,
+        "rsi": float(last["rsi"]),
+        "ema20": float(last["ema20"]),
+        "ema50": float(last["ema50"]),
+        "atr": atr,
+        "entry": entry if signal != "WAIT" else None,
+        "sl": sl,
+        "tp": tp,
+        "risk_reward": 2.0 if signal != "WAIT" else None,
+        "time": last["datetime"],
     }
 
-    if len(df) < 60:
-        result["reason"] = (
-            "At least 60 completed 15-minute candles "
-            "are needed for this analysis."
+
+# ---------- SIGNAL DISPLAY ----------
+def show_signal(result, zone_name):
+    st.divider()
+    st.subheader("GoldScope AI Signal")
+
+    if result is None:
+        st.warning(
+            "Not enough completed candles to calculate indicators."
         )
-        return result
+        return
 
-    data = add_indicators(df)
-
-    current = data.iloc[-1]
-    previous = data.iloc[-2]
-
-    entry = float(current["close"])
-    ema20 = float(current["ema20"])
-    ema50 = float(current["ema50"])
-    rsi = float(current["rsi"])
-    atr = float(current["atr"])
-
-    result.update(
-        {
-            "entry": entry,
-            "rsi": rsi,
-            "ema20": ema20,
-            "ema50": ema50,
-            "atr": atr,
-            "candle_time": current["datetime"],
-        }
-    )
-
-    if pd.isna(atr) or atr <= 0:
-        result["reason"] = "ATR is not ready for analysis."
-        return result
-
-    bullish_candle = current["close"] > current["open"]
-    bearish_candle = current["close"] < current["open"]
-
-    crossed_above_ema20 = (
-        previous["close"] <= previous["ema20"]
-        and current["close"] > current["ema20"]
-    )
-
-    crossed_below_ema20 = (
-        previous["close"] >= previous["ema20"]
-        and current["close"] < current["ema20"]
-    )
-
-    buy_setup = (
-        ema20 > ema50
-        and current["close"] > ema20
-        and bullish_candle
-        and 50 <= rsi <= 68
-        and crossed_above_ema20
-    )
-
-    sell_setup = (
-        ema20 < ema50
-        and current["close"] < ema20
-        and bearish_candle
-        and 32 <= rsi <= 50
-        and crossed_below_ema20
-    )
-
-    if buy_setup:
-        result["signal"] = "BUY"
-        result["reason"] = (
-            "The EMA trend, candle direction, RSI, "
-            "and EMA20 crossover meet the buy rules."
-        )
-
-        result["stop_loss"] = entry - atr
-        result["take_profit"] = entry + (2 * atr)
-
-    elif sell_setup:
-        result["signal"] = "SELL"
-        result["reason"] = (
-            "The EMA trend, candle direction, RSI, "
-            "and EMA20 crossover meet the sell rules."
-        )
-
-        result["stop_loss"] = entry + atr
-        result["take_profit"] = entry - (2 * atr)
-
-    else:
-        result["reason"] = (
-            "The full entry rules are not met. "
-            "Wait for a clearer setup."
-        )
-
-    return result
-
-
-# --------------------------------------------------
-# SUPPORT AND RESISTANCE
-# --------------------------------------------------
-
-def calculate_support_resistance(df):
-    if df.empty:
-        return None, None
-
-    recent = df.tail(50)
-
-    support = float(recent["low"].min())
-    resistance = float(recent["high"].max())
-
-    return support, resistance
-
-
-# --------------------------------------------------
-# SIGNAL DISPLAY AND ALERTS
-# --------------------------------------------------
-
-def show_signal(signal_data):
-    signal = signal_data["signal"]
-
-    st.subheader("Market Signal")
+    signal = result["signal"]
 
     if signal == "BUY":
-        st.success("BUY setup detected")
-
+        st.success("BUY SETUP DETECTED")
     elif signal == "SELL":
-        st.error("SELL setup detected")
-
+        st.error("SELL SETUP DETECTED")
     else:
-        st.info("WAIT — no complete entry setup")
+        st.info("WAIT - No confirmed setup")
 
-    st.write(signal_data["reason"])
+    st.write(result["reason"])
 
-    if signal_data["entry"] is not None:
-        col1, col2, col3 = st.columns(3)
+    c1, c2, c3 = st.columns(3)
 
-        col1.metric(
-            "Analysis Entry Price",
-            f"${signal_data['entry']:,.2f}",
+    c1.metric("Signal candle close", f'${result["price"]:,.2f}')
+    c2.metric("RSI (14)", f'{result["rsi"]:.2f}')
+    c3.metric("ATR (14)", f'${result["atr"]:,.2f}')
+
+    st.caption(
+        f'EMA 20: ${result["ema20"]:,.2f} | '
+        f'EMA 50: ${result["ema50"]:,.2f}'
+    )
+
+    if signal in ("BUY", "SELL"):
+        st.markdown("### Trade Plan")
+
+        a, b, c, d = st.columns(4)
+
+        a.metric("Entry reference", f'${result["entry"]:,.2f}')
+        b.metric("Take Profit (TP)", f'${result["tp"]:,.2f}')
+        c.metric("Stop Loss (SL)", f'${result["sl"]:,.2f}')
+        d.metric("Risk / Reward", "1 : 2")
+
+        st.caption(
+            f'Risk distance: '
+            f'${abs(result["entry"] - result["sl"]):,.2f}'
+            f' | Target distance: '
+            f'${abs(result["tp"] - result["entry"]):,.2f}'
         )
 
-        if signal_data["stop_loss"] is not None:
-            col2.metric(
-                "Theoretical Stop Loss",
-                f"${signal_data['stop_loss']:,.2f}",
-            )
+        st.warning(
+            "TP and SL are illustrative levels, not guaranteed "
+            "execution prices. Spread, slippage, gaps, and "
+            "market conditions can change outcomes."
+        )
+    else:
+        st.caption("No TP/SL levels while the signal is WAIT.")
 
-            col3.metric(
-                "Theoretical Take Profit",
-                f"${signal_data['take_profit']:,.2f}",
-            )
+    display_time = result["time"].tz_convert(zone_name)
 
-            st.caption(
-                "Illustrative ATR-based levels, using a 1:2 "
-                "risk-to-reward ratio. These are not guaranteed "
-                "execution prices or personalized financial advice."
-            )
+    st.caption(
+        "Signal candle: "
+        + display_time.strftime("%Y-%m-%d %H:%M %Z")
+    )
 
-    candle_time = signal_data.get("candle_time")
-
-    if signal in ("BUY", "SELL") and candle_time is not None:
-        alert_id = f"{signal}_{candle_time.isoformat()}"
+    # Notify once per direction and candle in this session.
+    if signal in ("BUY", "SELL"):
+        alert_id = f'{signal}_{result["time"].isoformat()}'
 
         if alert_id not in st.session_state.gold_alerts_seen:
+            st.toast(
+                f"GoldScope AI: {signal} setup detected!"
+            )
             st.session_state.gold_alerts_seen.add(alert_id)
 
-            st.toast(
-                f"{signal} setup detected on a completed 15-minute candle.",
-                icon="🪙",
+    st.caption(
+        "Experimental signals. Accuracy is not verified. "
+        "No automatic trading."
+    )
+
+
+# ---------- MAIN DASHBOARD ----------
+@st.fragment(run_every="60s")
+def gold_dashboard(zone_name):
+    if not api_key:
+        st.error(
+            "API key missing. Add TWELVE_DATA_API_KEY "
+            "to your Streamlit Cloud Secrets."
+        )
+        return
+
+    try:
+        df = fetch_gold(api_key)
+
+        latest = float(df["close"].iloc[-1])
+        previous = (
+            float(df["close"].iloc[-2])
+            if len(df) > 1 else latest
+        )
+
+        change = latest - previous
+
+        support = float(df["low"].tail(20).min())
+        resistance = float(df["high"].tail(20).max())
+
+        c1, c2, c3 = st.columns(3)
+
+        c1.metric(
+            "Gold (XAU/USD)",
+            f"${latest:,.2f}",
+            f"{change:+.2f}",
+        )
+        c2.metric("Estimated Support", f"${support:,.2f}")
+        c3.metric("Estimated Resistance", f"${resistance:,.2f}")
+
+        result = calculate_gold_signal(df)
+        show_signal(result, zone_name)
+
+        # Candlestick chart.
+        chart_df = df.copy()
+        chart_df["datetime"] = (
+            chart_df["datetime"].dt.tz_convert(zone_name)
+        )
+
+        st.subheader("XAU/USD Candlestick Chart")
+        st.caption(
+            "Each candle represents 15 minutes. "
+            "Times use the selected time zone."
+        )
+
+        fig = go.Figure(
+            data=[
+                go.Candlestick(
+                    x=chart_df["datetime"],
+                    open=chart_df["open"],
+                    high=chart_df["high"],
+                    low=chart_df["low"],
+                    close=chart_df["close"],
+                    name="XAU/USD",
+                    increasing_line_color="#16a34a",
+                    decreasing_line_color="#ef4444",
+                )
+            ]
+        )
+
+        fig.add_hline(
+            y=support,
+            line_dash="dash",
+            line_color="#16a34a",
+            annotation_text="Estimated Support",
+        )
+
+        fig.add_hline(
+            y=resistance,
+            line_dash="dash",
+            line_color="#ef4444",
+            annotation_text="Estimated Resistance",
+        )
+
+        fig.update_layout(
+            template="plotly_dark",
+            height=600,
+            xaxis_title=f"Time ({zone_name})",
+            yaxis_title="Gold price (USD)",
+            xaxis_rangeslider_visible=False,
+            margin=dict(l=20, r=20, t=35, b=20),
+        )
+
+        fig.update_xaxes(
+            tickformat="%d %b %H:%M",
+            showgrid=True,
+        )
+        fig.update_yaxes(
+            tickprefix="$",
+            showgrid=True,
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Recent candles.
+        with st.expander("View recent candles"):
+            table = chart_df.tail(10).copy()
+
+            table["datetime"] = table["datetime"].dt.strftime(
+                "%Y-%m-%d %H:%M %Z"
             )
 
-    if signal_data["rsi"] is not None:
-        a, b, c = st.columns(3)
+            table = table.rename(
+                columns={
+                    "datetime": f"Time ({zone_name})",
+                    "open": "Open",
+                    "high": "High",
+                    "low": "Low",
+                    "close": "Close",
+                }
+            )
 
-        a.metric("RSI (14)", f"{signal_data['rsi']:.2f}")
-        b.metric("EMA 20", f"${signal_data['ema20']:,.2f}")
-        c.metric("EMA 50", f"${signal_data['ema50']:,.2f}")
+            st.dataframe(
+                table[
+                    [
+                        f"Time ({zone_name})",
+                        "Open",
+                        "High",
+                        "Low",
+                        "Close",
+                    ]
+                ].iloc[::-1],
+                use_container_width=True,
+                hide_index=True,
+            )
 
+        # Market observation.
+        st.subheader("Market Observation")
 
-# --------------------------------------------------
-# DASHBOARD
-# --------------------------------------------------
+        recent = df["close"].tail(5)
 
-@st.fragment(run_every="60s")
-def gold_dashboard(api_key, zone_name):
-    df, error = fetch_gold(api_key)
+        if len(recent) >= 5 and recent.is_monotonic_increasing:
+            st.info("Recent closing prices are trending upward.")
+        elif len(recent) >= 5 and recent.is_monotonic_decreasing:
+            st.info("Recent closing prices are trending downward.")
+        else:
+            st.info(
+                "Recent prices are moving unevenly. "
+                "This observation does not predict future prices."
+            )
 
-    if error:
-        st.error(f"Could not load gold data: {error}")
-        st.info(
-            "Check your API key, internet connection, "
-            "and Twelve Data plan."
+        latest_time = df["datetime"].iloc[-1].tz_convert(zone_name)
+
+        st.caption(
+            "Latest candle received: "
+            + latest_time.strftime("%Y-%m-%d %H:%M %Z")
         )
-        return
-
-    if df.empty:
-        st.warning("No gold candle data is available yet.")
-        return
-
-    complete_df = completed_candles(df)
-
-    if complete_df.empty:
-        st.warning(
-            "Waiting for the first completed 15-minute candle."
+        st.caption(
+            "Last checked: "
+            + datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
         )
-        return
-
-    latest = complete_df.iloc[-1]
-
-    support, resistance = calculate_support_resistance(
-        complete_df
-    )
-
-    current_price = float(latest["close"])
-
-    st.subheader("Live Gold Market")
-
-    price_col, support_col, resistance_col = st.columns(3)
-
-    price_col.metric(
-        "Latest Completed Candle",
-        f"${current_price:,.2f}",
-    )
-
-    support_col.metric(
-        "Support (last 50 candles)",
-        f"${support:,.2f}",
-    )
-
-    resistance_col.metric(
-        "Resistance (last 50 candles)",
-        f"${resistance:,.2f}",
-    )
-
-    st.caption(
-        "Price and levels are based on the latest completed "
-        "15-minute candle and recent candle ranges."
-    )
-
-    st.divider()
-
-    signal_data = calculate_gold_signal(complete_df)
-    show_signal(signal_data)
-
-    st.divider()
-
-    # ----------------------------------------------
-    # CANDLESTICK CHART
-    # ----------------------------------------------
-
-    st.subheader("XAU/USD 15-Minute Candlestick Chart")
-
-    chart_df = add_indicators(complete_df.tail(100).copy())
-
-    chart_df["display_time"] = (
-        chart_df["datetime"]
-        .dt.tz_convert(ZoneInfo(zone_name))
-    )
-
-    fig = go.Figure()
-
-    fig.add_trace(
-        go.Candlestick(
-            x=chart_df["display_time"],
-            open=chart_df["open"],
-            high=chart_df["high"],
-            low=chart_df["low"],
-            close=chart_df["close"],
-            name="XAU/USD",
-            increasing_line_color="#20B486",
-            decreasing_line_color="#E05260",
-        )
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=chart_df["display_time"],
-            y=chart_df["ema20"],
-            mode="lines",
-            name="EMA 20",
-            line=dict(color="#E7B84B", width=1.5),
-        )
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=chart_df["display_time"],
-            y=chart_df["ema50"],
-            mode="lines",
-            name="EMA 50",
-            line=dict(color="#5CA9FF", width=1.5),
-        )
-    )
-
-    fig.add_hline(
-        y=support,
-        line_dash="dash",
-        line_color="#20B486",
-        annotation_text="Support",
-    )
-
-    fig.add_hline(
-        y=resistance,
-        line_dash="dash",
-        line_color="#E05260",
-        annotation_text="Resistance",
-    )
-
-    fig.update_layout(
-        template="plotly_dark",
-        height=600,
-        xaxis_title=f"Time ({zone_name})",
-        yaxis_title="Gold Price (USD)",
-        xaxis_rangeslider_visible=False,
-        margin=dict(l=10, r=10, t=35, b=10),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="left",
-            x=0,
-        ),
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True,
-    )
-
-    # ----------------------------------------------
-    # RECENT CANDLES
-    # ----------------------------------------------
-
-    with st.expander("View Recent 15-Minute Candles"):
-        recent = complete_df.tail(15).copy()
-
-        recent["Time"] = (
-            recent["datetime"]
-            .dt.tz_convert(ZoneInfo(zone_name))
-            .dt.strftime("%Y-%m-%d %H:%M:%S")
+        st.caption(
+            "Refresh checks run every 60 seconds. "
+            "Data updates depend on Twelve Data."
         )
 
-        recent = recent[
-            ["Time", "open", "high", "low", "close"]
-        ].sort_values("Time", ascending=False)
-
-        recent = recent.rename(
-            columns={
-                "open": "Open",
-                "high": "High",
-                "low": "Low",
-                "close": "Close",
-            }
-        )
-
-        st.dataframe(
-            recent,
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    # ----------------------------------------------
-    # MARKET OBSERVATION
-    # ----------------------------------------------
-
-    st.subheader("Market Observation")
-
-    latest_indicators = add_indicators(
-        complete_df
-    ).iloc[-1]
-
-    if latest_indicators["ema20"] > latest_indicators["ema50"]:
-        st.write(
-            "The EMA20 is above EMA50, indicating an upward "
-            "trend condition in this indicator."
-        )
-
-    elif latest_indicators["ema20"] < latest_indicators["ema50"]:
-        st.write(
-            "The EMA20 is below EMA50, indicating a downward "
-            "trend condition in this indicator."
-        )
-
-    else:
-        st.write(
-            "The EMAs are close together. Trend direction "
-            "may be unclear."
-        )
-
-    last_update = datetime.now(
-        timezone.utc
-    ).astimezone(
-        ZoneInfo(zone_name)
-    )
-
-    st.caption(
-        f"Dashboard checked: {last_update:%Y-%m-%d %H:%M:%S} "
-        f"({zone_name})."
-    )
-
-    st.caption(
-        "Data refreshes approximately every 60 seconds. "
-        "The data provider may delay updates or enforce API limits."
-    )
+    except Exception as error:
+        st.error(f"Could not update gold prices: {error}")
 
 
-# --------------------------------------------------
-# MAIN APP
-# --------------------------------------------------
-
+# ---------- APP ROUTING ----------
 if not st.session_state.gold_started:
     show_startup_screen()
 
 else:
     show_header()
 
-    api_key = get_api_key()
-
-    selected_timezone = st.selectbox(
-        "Display time zone",
+    selected_zone = st.selectbox(
+        "Chart time zone",
         options=list(TIMEZONES.keys()),
-        index=0,
+        index=1,
     )
 
-    zone_name = TIMEZONES[selected_timezone]
+    zone_name = TIMEZONES[selected_zone]
 
-    if api_key:
-        gold_dashboard(api_key, zone_name)
-    else:
-        st.info(
-            "Enter your Twelve Data API key in the sidebar "
-            "to load the dashboard."
-        )
+    st.caption(
+        f"Selected time zone: {selected_zone} | "
+        f"UTC offset: "
+        f"{datetime.now(ZoneInfo(zone_name)).strftime('%z')}"
+    )
+
+    gold_dashboard(zone_name)
 
     st.divider()
+    st.subheader("About GoldScope AI")
 
-    with st.expander("About GoldScope AI"):
-        st.write(
-            "GoldScope AI is an educational gold-market dashboard. "
-            "It displays XAU/USD candle data, technical indicators, "
-            "support and resistance estimates, and rule-based "
-            "BUY, SELL, or WAIT setups."
-        )
+    st.write(
+        "GoldScope AI displays XAU/USD candlesticks, "
+        "experimental indicator setups, and estimated "
+        "support and resistance. TP and SL are illustrative "
+        "levels calculated using ATR."
+    )
 
-        st.write(
-            "Signals are not guaranteed to be accurate. This app "
-            "does not place trades or connect to a broker to execute "
-            "orders. Always verify market data and test any strategy "
-            "carefully before making financial decisions."
-        )
+    st.caption(
+        "For educational purposes only. "
+        "No automatic trading. Accuracy is not verified."
+    )
 
-    if st.button("Return to Startup Screen"):
+    if st.button("Return to startup screen"):
         st.session_state.gold_started = False
         st.rerun()
