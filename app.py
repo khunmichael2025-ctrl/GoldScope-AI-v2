@@ -1,4 +1,3 @@
-
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
@@ -7,6 +6,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
+import base64
 
 st.set_page_config(
     page_title="GoldScope AI",
@@ -21,189 +21,207 @@ if "gold_started" not in st.session_state:
 if "gold_alerts_seen" not in st.session_state:
     st.session_state.gold_alerts_seen = set()
 
+
 # ---------- STARTUP SCREEN ----------
 def show_startup_screen():
     st.markdown(
         """
         <style>
         .stApp {
-            background-color: #071426;
+            background: #000000;
+        }
+
+        [data-testid="stHeader"] {
+            background: transparent;
+        }
+
+        .startup-title {
+            text-align: center;
+            color: #f5d991;
+            font-size: clamp(28px, 5vw, 44px);
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-top: 22px;
+            margin-bottom: 8px;
+        }
+
+        .startup-subtitle {
+            text-align: center;
+            color: #a9b9cd;
+            font-size: 12px;
+            letter-spacing: 3px;
+            margin-bottom: 20px;
+        }
+
+        div.stButton > button[kind="primary"] {
+            background: linear-gradient(135deg, #f5d991, #b88632);
+            color: #10131b;
+            border: none;
+            border-radius: 12px;
+            min-height: 52px;
+            font-size: 17px;
+            font-weight: 750;
+        }
+
+        div.stButton > button[kind="primary"]:hover {
+            background: #ffe7a1;
+            color: #10131b;
+            border: none;
+        }
+
+        .startup-footer {
+            text-align: center;
+            color: #77869b;
+            font-size: 11px;
+            margin-top: 14px;
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    components.html(
+    # Add startup_hands.png beside this Python file.
+    if Path("startup_hands.png").exists():
+        image_base64 = base64.b64encode(
+            Path("startup_hands.png").read_bytes()
+        ).decode("utf-8")
+
+        components.html(
+            f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+            <meta name="viewport"
+                  content="width=device-width, initial-scale=1">
+            <style>
+                * {{ box-sizing: border-box; }}
+
+                body {{
+                    margin: 0;
+                    padding: 0;
+                    background: #000;
+                    overflow: hidden;
+                }}
+
+                .banner {{
+                    position: relative;
+                    width: 100%;
+                    background: #000;
+                    overflow: hidden;
+                }}
+
+                .banner img {{
+                    display: block;
+                    width: 100%;
+                    height: auto;
+                }}
+
+                .coin-position {{
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    perspective: 600px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: clamp(48px, 10vw, 100px);
+                    aspect-ratio: 1;
+                    background: #000;
+                    border-radius: 50%;
+                }}
+
+                .coin {{
+                    display: inline-block;
+                    font-family: "Apple Color Emoji",
+                                 "Segoe UI Emoji", sans-serif;
+                    font-size: clamp(38px, 8vw, 76px);
+                    line-height: 1;
+                    transform-style: preserve-3d;
+                    filter:
+                        drop-shadow(0 0 7px #ffd45b)
+                        drop-shadow(0 0 18px rgba(255, 180, 30, .65));
+                    animation: coin-spin 3s linear infinite;
+                }}
+
+                @keyframes coin-spin {{
+                    from {{ transform: rotateY(0deg); }}
+                    to {{ transform: rotateY(360deg); }}
+                }}
+
+                @media (prefers-reduced-motion: reduce) {{
+                    .coin {{ animation: none; }}
+                }}
+            </style>
+            </head>
+            <body>
+                <div class="banner">
+                    <img
+                        src="data:image/png;base64,{image_base64}"
+                        alt="Two hands reaching toward each other"
+                    >
+                    <div class="coin-position">
+                        <span class="coin">🪙</span>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """,
+            height=300,
+            scrolling=False,
+        )
+    else:
+        st.warning(
+            "Upload startup_hands.png beside streamlit_app.py "
+            "to show the hands artwork."
+        )
+
+    st.markdown(
         """
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <style>
-            * { box-sizing: border-box; }
-
-            body {
-                margin: 0;
-                font-family: Arial, sans-serif;
-                color: #f5f0e5;
-                background: #071426;
-            }
-
-            .intro {
-                min-height: 480px;
-                width: 100%;
-                padding: 35px 12px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                text-align: center;
-                overflow: hidden;
-                border: 1px solid #34445b;
-                border-radius: 20px;
-                background:
-                    radial-gradient(
-                        circle at center,
-                        #183454 0%,
-                        #0b1c32 48%,
-                        #071426 85%
-                    );
-            }
-
-            .eyebrow {
-                font-size: 11px;
-                letter-spacing: 5px;
-                color: #d8b76a;
-                margin-bottom: 24px;
-            }
-
-            .coin-stage {
-                perspective: 800px;
-                margin: 5px 0 24px;
-            }
-
-            .spinning-coin {
-                display: inline-block;
-                font-family: "Segoe UI Emoji",
-                             "Apple Color Emoji",
-                             sans-serif;
-                font-size: 110px;
-                line-height: 1.3;
-                transform-style: preserve-3d;
-                filter:
-                    drop-shadow(0 0 12px rgba(235, 190, 82, .45))
-                    drop-shadow(0 0 32px rgba(235, 190, 82, .18));
-                animation: coin-spin 3s linear infinite;
-                will-change: transform;
-            }
-
-            @keyframes coin-spin {
-                from {
-                    transform: rotateY(0deg);
-                }
-                to {
-                    transform: rotateY(360deg);
-                }
-            }
-
-            h1 {
-                font-size: clamp(28px, 5vw, 42px);
-                letter-spacing: 2px;
-                margin: 0 0 12px;
-                font-weight: 750;
-                color: #f5d991;
-                text-shadow: 0 0 22px rgba(225, 182, 86, .18);
-            }
-
-            .subtitle {
-                font-size: 12px;
-                letter-spacing: 3px;
-                color: #a9b9cd;
-            }
-
-            .description {
-                max-width: 460px;
-                color: #bac7d7;
-                font-size: 13px;
-                line-height: 1.8;
-                margin-top: 22px;
-            }
-
-            .loading-line {
-                width: 145px;
-                height: 2px;
-                margin-top: 26px;
-                overflow: hidden;
-                background: #243a51;
-                border-radius: 4px;
-            }
-
-            .loading-line::after {
-                content: "";
-                display: block;
-                width: 45%;
-                height: 100%;
-                background: #e6c16e;
-                animation: loading 2s ease-in-out infinite;
-            }
-
-            @keyframes loading {
-                from { transform: translateX(-110%); }
-                to { transform: translateX(330%); }
-            }
-
-            @media (prefers-reduced-motion: reduce) {
-                .spinning-coin,
-                .loading-line::after {
-                    animation-duration: 8s;
-                }
-            }
-        </style>
-        </head>
-        <body>
-            <div class="intro">
-                <div class="eyebrow">MARKET INTELLIGENCE</div>
-
-                <div class="coin-stage">
-                    <div class="spinning-coin">🪙</div>
-                </div>
-
-                <h1>GoldScope AI</h1>
-
-                <div class="subtitle">
-                    PRECISION · CLARITY · DISCIPLINE
-                </div>
-
-                <div class="description">
-                    Explore XAU/USD market data, technical indicators,
-                    and experimental trading setups in one dashboard.
-                </div>
-
-                <div class="loading-line"></div>
-            </div>
-        </body>
-        </html>
+        <div class="startup-title">🪙 GoldScope AI</div>
+        <div class="startup-subtitle">
+            PRECISION · CLARITY · DISCIPLINE
+        </div>
         """,
-        height=500,
-        scrolling=False,
+        unsafe_allow_html=True,
     )
 
-    st.write("")
+    st.markdown(
+        """
+        <div style="
+            text-align:center;
+            color:#bac7d7;
+            font-size:14px;
+            line-height:1.8;
+            margin:0 auto 28px auto;
+            max-width:460px;
+        ">
+            Explore XAU/USD market data, technical indicators,
+            and experimental trading setups in one dashboard.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     _, center, _ = st.columns([1, 2, 1])
 
     with center:
         if st.button(
-            "Enter GoldScope AI",
+            "🪙 Continue",
             type="primary",
             use_container_width=True,
         ):
             st.session_state.gold_started = True
             st.rerun()
 
-        st.caption(
-            "Educational market analysis. Signals are not guaranteed."
-        )
+    st.markdown(
+        """
+        <div class="startup-footer">
+            EDUCATIONAL MARKET ANALYSIS · TRADE RESPONSIBLY
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 # ---------- HEADER ----------
@@ -298,9 +316,7 @@ def calculate_gold_signal(df):
 
     # Only use completed 15-minute candles.
     now = pd.Timestamp.now(tz="UTC")
-
     candle_end = data["datetime"] + pd.Timedelta(minutes=15)
-
     data = data.loc[candle_end <= now].copy()
     data = data.sort_values("datetime").reset_index(drop=True)
 
@@ -449,7 +465,6 @@ def show_signal(result, zone_name):
     st.write(result["reason"])
 
     c1, c2, c3 = st.columns(3)
-
     c1.metric("Signal candle close", f'${result["price"]:,.2f}')
     c2.metric("RSI (14)", f'{result["rsi"]:.2f}')
     c3.metric("ATR (14)", f'${result["atr"]:,.2f}')
@@ -463,7 +478,6 @@ def show_signal(result, zone_name):
         st.markdown("### Trade Plan")
 
         a, b, c, d = st.columns(4)
-
         a.metric("Entry reference", f'${result["entry"]:,.2f}')
         b.metric("Take Profit (TP)", f'${result["tp"]:,.2f}')
         c.metric("Stop Loss (SL)", f'${result["sl"]:,.2f}')
@@ -485,7 +499,6 @@ def show_signal(result, zone_name):
         st.caption("No TP/SL levels while the signal is WAIT.")
 
     display_time = result["time"].tz_convert(zone_name)
-
     st.caption(
         "Signal candle: "
         + display_time.strftime("%Y-%m-%d %H:%M %Z")
@@ -496,9 +509,7 @@ def show_signal(result, zone_name):
         alert_id = f'{signal}_{result["time"].isoformat()}'
 
         if alert_id not in st.session_state.gold_alerts_seen:
-            st.toast(
-                f"GoldScope AI: {signal} setup detected!"
-            )
+            st.toast(f"GoldScope AI: {signal} setup detected!")
             st.session_state.gold_alerts_seen.add(alert_id)
 
     st.caption(
@@ -521,23 +532,14 @@ def gold_dashboard(zone_name):
         df = fetch_gold(api_key)
 
         latest = float(df["close"].iloc[-1])
-        previous = (
-            float(df["close"].iloc[-2])
-            if len(df) > 1 else latest
-        )
-
+        previous = float(df["close"].iloc[-2]) if len(df) > 1 else latest
         change = latest - previous
 
         support = float(df["low"].tail(20).min())
         resistance = float(df["high"].tail(20).max())
 
         c1, c2, c3 = st.columns(3)
-
-        c1.metric(
-            "Gold (XAU/USD)",
-            f"${latest:,.2f}",
-            f"{change:+.2f}",
-        )
+        c1.metric("Gold (XAU/USD)", f"${latest:,.2f}", f"{change:+.2f}")
         c2.metric("Estimated Support", f"${support:,.2f}")
         c3.metric("Estimated Resistance", f"${resistance:,.2f}")
 
@@ -546,9 +548,7 @@ def gold_dashboard(zone_name):
 
         # Candlestick chart.
         chart_df = df.copy()
-        chart_df["datetime"] = (
-            chart_df["datetime"].dt.tz_convert(zone_name)
-        )
+        chart_df["datetime"] = chart_df["datetime"].dt.tz_convert(zone_name)
 
         st.subheader("XAU/USD Candlestick Chart")
         st.caption(
@@ -594,21 +594,13 @@ def gold_dashboard(zone_name):
             margin=dict(l=20, r=20, t=35, b=20),
         )
 
-        fig.update_xaxes(
-            tickformat="%d %b %H:%M",
-            showgrid=True,
-        )
-        fig.update_yaxes(
-            tickprefix="$",
-            showgrid=True,
-        )
-
+        fig.update_xaxes(tickformat="%d %b %H:%M", showgrid=True)
+        fig.update_yaxes(tickprefix="$", showgrid=True)
         st.plotly_chart(fig, use_container_width=True)
 
         # Recent candles.
         with st.expander("View recent candles"):
             table = chart_df.tail(10).copy()
-
             table["datetime"] = table["datetime"].dt.strftime(
                 "%Y-%m-%d %H:%M %Z"
             )
@@ -639,7 +631,6 @@ def gold_dashboard(zone_name):
 
         # Market observation.
         st.subheader("Market Observation")
-
         recent = df["close"].tail(5)
 
         if len(recent) >= 5 and recent.is_monotonic_increasing:
@@ -653,7 +644,6 @@ def gold_dashboard(zone_name):
             )
 
         latest_time = df["datetime"].iloc[-1].tz_convert(zone_name)
-
         st.caption(
             "Latest candle received: "
             + latest_time.strftime("%Y-%m-%d %H:%M %Z")
